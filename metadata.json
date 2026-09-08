@@ -1,0 +1,6 @@
+{
+  "name": "Zxh4Stream",
+  "description": "Stream Beyond Limits - Netflix-style streaming platform with user profiles, full-screen video player, content catalog, downloads, subscription management, and super admin dashboard",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
