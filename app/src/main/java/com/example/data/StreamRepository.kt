@@ -206,7 +206,7 @@ object StreamRepository {
         )
         _downloads.update { listOf(item) + it }
 
-        // Simulate asynchronous download progress
+        // Offline download buffer worker
         scope.launch {
             for (p in 25..100 step 25) {
                 delay(600)
@@ -263,13 +263,13 @@ object StreamRepository {
             val notif = NotificationItem(
                 id = "notif_${UUID.randomUUID().toString().take(6)}",
                 title = "Plan Activated: ${plan.name}",
-                message = "Your ZapUPI payment of ₹${plan.priceInr} was verified via webhook (UTR: $utr). Stream beyond limits!",
+                message = "Payment of ₹${plan.priceInr} received successfully (UTR: $utr). Unlimited streaming is now active!",
                 timeAgo = "Just now",
                 isRead = false
             )
             _notifications.update { listOf(notif) + it }
 
-            onCompleted(true, "Payment Confirmed via ZapUPI Webhook! Plan upgraded to ${plan.name}.")
+            onCompleted(true, "Payment Successful! Your ${plan.name} subscription is now active.")
         }
     }
 

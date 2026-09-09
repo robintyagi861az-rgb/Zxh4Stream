@@ -22,6 +22,7 @@ data class Episode(
     val durationMinutes: Int,
     val thumbnail: String,
     val videoUrl: String,
+    val embedUrl: String = "",
     val isFiller: Boolean = false
 )
 
@@ -40,6 +41,7 @@ data class ContentItem(
     val backdropUrl: String,
     val trailerUrl: String = "",
     val videoUrl: String = "",
+    val embedUrl: String = "",
     val durationMinutes: Int = 120,
     val releaseYear: Int = 2025,
     val maturityRating: String = "U/A 16+",

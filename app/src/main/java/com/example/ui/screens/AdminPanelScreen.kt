@@ -427,10 +427,11 @@ private fun AdminContentSection() {
     var newDescription by remember { mutableStateOf("") }
     var newGenres by remember { mutableStateOf("Action, Thriller") }
     var newType by remember { mutableStateOf(ContentType.MOVIE) }
-    var uploadMode by remember { mutableStateOf("VPS") } // "VPS" or "EMBED"
-    var videoUrl by remember { mutableStateOf("https://vps.zxh4stream.com/hls/master.m3u8") }
-    var isTranscodingSimulated by remember { mutableStateOf(false) }
-    var transcodeProgress by remember { mutableFloatStateOf(0f) }
+    var uploadMode by remember { mutableStateOf("EMBED") } // "EMBED" or "DIRECT" or "VPS"
+    var videoUrl by remember { mutableStateOf("") }
+    var embedUrl by remember { mutableStateOf("") }
+    var isProcessingIngest by remember { mutableStateOf(false) }
+    var ingestProgress by remember { mutableFloatStateOf(0f) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -547,7 +548,7 @@ private fun AdminContentSection() {
     // Add Content Dialog with VPS Storage Upload / Transcode or Embed Link
     if (showAddDialog) {
         AlertDialog(
-            onDismissRequest = { if (!isTranscodingSimulated) showAddDialog = false },
+            onDismissRequest = { if (!isProcessingIngest) showAddDialog = false },
             containerColor = SurfaceCard,
             title = {
                 Text(
@@ -592,26 +593,51 @@ private fun AdminContentSection() {
                     Text("Content Source Type:", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(
+                            selected = uploadMode == "EMBED",
+                            onClick = { uploadMode = "EMBED" },
+                            colors = RadioButtonDefaults.colors(selectedColor = NetflixRed)
+                        )
+                        Text("External Embed Link / iframe", color = TextPrimary, fontSize = 12.sp)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
+                            selected = uploadMode == "DIRECT",
+                            onClick = { uploadMode = "DIRECT" },
+                            colors = RadioButtonDefaults.colors(selectedColor = NetflixRed)
+                        )
+                        Text("Direct Video / CDN Stream (MP4 / M3U8)", color = TextPrimary, fontSize = 12.sp)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
                             selected = uploadMode == "VPS",
                             onClick = { uploadMode = "VPS" },
                             colors = RadioButtonDefaults.colors(selectedColor = NetflixRed)
                         )
                         Text("VPS Direct Upload (FFmpeg HLS)", color = TextPrimary, fontSize = 12.sp)
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(
-                            selected = uploadMode == "EMBED",
-                            onClick = { uploadMode = "EMBED" },
-                            colors = RadioButtonDefaults.colors(selectedColor = NetflixRed)
-                        )
-                        Text("External Embed Link / CDN M3U8", color = TextPrimary, fontSize = 12.sp)
-                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     if (uploadMode == "EMBED") {
                         OutlinedTextField(
+                            value = embedUrl,
+                            onValueChange = { embedUrl = it },
+                            label = { Text("Embed URL (iframe/player source)", color = TextSecondary) },
+                            placeholder = { Text("https://example.com/embed/...", color = TextMuted) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = NetflixRed,
+                                unfocusedBorderColor = BorderGray,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else if (uploadMode == "DIRECT") {
+                        OutlinedTextField(
                             value = videoUrl,
                             onValueChange = { videoUrl = it },
-                            label = { Text("Stream URL / M3U8", color = TextSecondary) },
+                            label = { Text("Direct Video URL (.mp4 / .m3u8)", color = TextSecondary) },
+                            placeholder = { Text("https://cdn.zxh4stream.com/stream.m3u8", color = TextMuted) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = NetflixRed,
                                 unfocusedBorderColor = BorderGray,
@@ -640,11 +666,11 @@ private fun AdminContentSection() {
                         }
                     }
 
-                    if (isTranscodingSimulated) {
+                    if (isProcessingIngest) {
                         Spacer(modifier = Modifier.height(14.dp))
-                        Text("Transcoding via FFmpeg on VPS... ${(transcodeProgress * 100).toInt()}%", color = GreenSuccess, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Transcoding via FFmpeg on VPS... ${(ingestProgress * 100).toInt()}%", color = GreenSuccess, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         LinearProgressIndicator(
-                            progress = { transcodeProgress },
+                            progress = { ingestProgress },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(6.dp)
@@ -658,9 +684,10 @@ private fun AdminContentSection() {
                 Button(
                     onClick = {
                         if (newTitle.isNotBlank()) {
-                            isTranscodingSimulated = true
-                            transcodeProgress = 0.2f
-                            // Simulate upload & transcoding
+                            isProcessingIngest = true
+                            ingestProgress = 0.45f
+                            val resolvedVideoUrl = if (uploadMode == "DIRECT") videoUrl.trim() else if (uploadMode == "VPS") "https://vps.zxh4stream.com/hls/master.m3u8" else ""
+                            val resolvedEmbedUrl = if (uploadMode == "EMBED") embedUrl.trim() else ""
                             val newItem = ContentItem(
                                 id = "c_${UUID.randomUUID().toString().take(6)}",
                                 title = newTitle.trim(),
@@ -674,15 +701,19 @@ private fun AdminContentSection() {
                                 durationMinutes = 135,
                                 matchScorePercent = 97,
                                 type = newType,
-                                videoUrl = videoUrl,
+                                videoUrl = resolvedVideoUrl,
+                                embedUrl = resolvedEmbedUrl,
+                                uploadSource = if (uploadMode == "EMBED") "External Embed" else if (uploadMode == "DIRECT") "CDN Direct Stream" else "VPS FFmpeg HLS",
                                 isFeatured = true,
                                 isNewRelease = true
                             )
                             StreamRepository.adminAddContent(newItem)
                             showAddDialog = false
-                            isTranscodingSimulated = false
+                            isProcessingIngest = false
                             newTitle = ""
                             newDescription = ""
+                            embedUrl = ""
+                            videoUrl = ""
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = NetflixRed)

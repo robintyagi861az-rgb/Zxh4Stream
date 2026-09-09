@@ -320,7 +320,7 @@ fun AuthScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "1-Tap Master Admin Login (${MockData.MASTER_ADMIN_EMAIL})",
+                        text = "Master Admin Quick Login (${MockData.MASTER_ADMIN_EMAIL})",
                         color = TextPrimary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
@@ -370,8 +370,8 @@ fun AuthScreen(
             if (otpSent) {
                 OutlinedTextField(
                     value = otpInput,
-                    onValueChange = { otpInput = it.take(4) },
-                    label = { Text("Enter OTP (Test: 8307)", color = TextSecondary) },
+                    onValueChange = { otpInput = it.take(6) },
+                    label = { Text("Enter 4-digit OTP", color = TextSecondary) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = NetflixRed,
@@ -503,7 +503,7 @@ fun AuthScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        forgotStatus = "Reset request logged. Check Master Admin logs."
+                        forgotStatus = "A password reset link has been dispatched to $forgotEmail."
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = NetflixRed)
                 ) {

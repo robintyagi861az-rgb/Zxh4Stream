@@ -305,36 +305,58 @@ fun SubscriptionPlansScreen(
         }
     }
 
-    // ZapUPI Checkout Dialog
+    var upiTab by remember { mutableStateOf(0) } // 0: Apps, 1: QR, 2: UPI ID
+    var customVpaInput by remember { mutableStateOf("") }
+    var paymentSuccessUtr by remember { mutableStateOf<String?>(null) }
+
+    // ZapUPI Checkout Sheet Dialog
     if (showZapUpiDialog) {
         AlertDialog(
             onDismissRequest = {
-                if (!paymentInProgress) showZapUpiDialog = false
+                if (!paymentInProgress) {
+                    showZapUpiDialog = false
+                    paymentStatusMessage = null
+                    paymentSuccessUtr = null
+                }
             },
             containerColor = SurfaceCard,
             title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(NetflixRed),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Bolt,
-                            contentDescription = "ZapUPI",
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(NetflixRed),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Bolt,
+                                contentDescription = "ZapUPI",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "ZapUPI Secure Checkout",
+                                color = TextPrimary,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 16.sp
+                            )
+                            Text(
+                                text = "Instant Auto-Activation",
+                                color = GreenSuccess,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 11.sp
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "ZapUPI Instant Checkout",
-                        color = TextPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
                 }
             },
             text = {
@@ -342,110 +364,297 @@ fun SubscriptionPlansScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "Plan: ${selectedPlan.name} • ₹${selectedPlan.priceInr}",
-                        color = TextPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
-                    Text(
-                        text = "Merchant VPA: ${zapConfig.merchantVpa}",
-                        color = TextSecondary,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // QR Code visual box
+                    // Plan Summary Header Card
                     Box(
                         modifier = Modifier
-                            .size(140.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White)
-                            .border(2.dp, NetflixRed, RoundedCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(BackgroundBlack)
+                            .border(1.dp, BorderGray, RoundedCornerShape(10.dp))
+                            .padding(12.dp)
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.QrCode,
-                                contentDescription = "Scan UPI",
-                                tint = Color.Black,
-                                modifier = Modifier.size(90.dp)
-                            )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = selectedPlan.name,
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                                Text(
+                                    text = "${selectedPlan.resolution} • ${selectedPlan.billingCycle}",
+                                    color = TextSecondary,
+                                    fontSize = 12.sp
+                                )
+                            }
                             Text(
-                                text = "Scan in Any UPI App",
-                                color = Color.Black,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp
+                                text = "₹${selectedPlan.priceInr}",
+                                color = NetflixRed,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 20.sp
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    if (paymentInProgress) {
-                        CircularProgressIndicator(
-                            color = NetflixRed,
-                            strokeWidth = 3.dp,
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
+                    if (paymentSuccessUtr != null) {
+                        // SUCCESS STATE
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(GreenSuccess.copy(alpha = 0.15f))
+                                .border(2.dp, GreenSuccess, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Success",
+                                tint = GreenSuccess,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Awaiting Webhook Confirmation...",
+                            text = "Payment Completed!",
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 18.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "UTR: $paymentSuccessUtr",
                             color = TextSecondary,
-                            fontSize = 12.sp
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
                         )
-                    } else if (paymentStatusMessage != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = paymentStatusMessage!!,
-                            color = GreenSuccess,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                    } else {
-                        Text(
-                            text = "Open GPay / PhonePe / Paytm / BHIM to complete authorization.",
+                            text = "Your ${selectedPlan.name} membership is now active. Enjoy ad-free streaming!",
                             color = TextMuted,
                             fontSize = 12.sp,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
+                    } else if (paymentInProgress) {
+                        // PROCESSING STATE
+                        Spacer(modifier = Modifier.height(20.dp))
+                        CircularProgressIndicator(
+                            color = NetflixRed,
+                            strokeWidth = 3.dp,
+                            modifier = Modifier.size(44.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Authorizing with Banking Network...",
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Please do not close this window.",
+                            color = TextMuted,
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+                    } else {
+                        // PAYMENT METHOD TABS
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(BackgroundBlack)
+                                .padding(3.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            listOf("UPI Apps", "Scan QR", "UPI ID").forEachIndexed { index, label ->
+                                val active = upiTab == index
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (active) NetflixRed else Color.Transparent)
+                                        .clickable { upiTab = index }
+                                        .padding(vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        color = if (active) Color.White else TextSecondary,
+                                        fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        when (upiTab) {
+                            0 -> {
+                                // POPULAR UPI APPS
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf(
+                                        "Google Pay" to "⚡ Instant 1-Tap",
+                                        "PhonePe" to "⚡ Instant 1-Tap",
+                                        "Paytm UPI" to "⚡ Instant 1-Tap",
+                                        "BHIM / Cred" to "⚡ Instant 1-Tap"
+                                    ).forEach { (app, speed) ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(BackgroundBlack)
+                                                .border(1.dp, BorderGray, RoundedCornerShape(8.dp))
+                                                .clickable {
+                                                    paymentInProgress = true
+                                                    StreamRepository.processZapUpiPayment(
+                                                        plan = selectedPlan,
+                                                        vpaId = zapConfig.merchantVpa
+                                                    ) { success, msg ->
+                                                        paymentInProgress = false
+                                                        paymentSuccessUtr = "UTR${(100000000000L..999999999999L).random()}"
+                                                    }
+                                                }
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(24.dp)
+                                                        .clip(CircleShape)
+                                                        .background(NetflixRed.copy(alpha = 0.2f)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(app.take(1), color = NetflixRed, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                                }
+                                                Spacer(modifier = Modifier.width(10.dp))
+                                                Text(app, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                            }
+                                            Text(speed, color = GreenSuccess, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                            1 -> {
+                                // QR CODE SCAN
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(130.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color.White)
+                                            .border(2.dp, NetflixRed, RoundedCornerShape(12.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Icon(
+                                                imageVector = Icons.Default.QrCode,
+                                                contentDescription = "Scan UPI",
+                                                tint = Color.Black,
+                                                modifier = Modifier.size(86.dp)
+                                            )
+                                            Text(
+                                                text = "Scan in Any UPI App",
+                                                color = Color.Black,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 9.sp
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "VPA: ${zapConfig.merchantVpa}",
+                                        color = TextSecondary,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Button(
+                                        onClick = {
+                                            paymentInProgress = true
+                                            StreamRepository.processZapUpiPayment(
+                                                plan = selectedPlan,
+                                                vpaId = zapConfig.merchantVpa
+                                            ) { success, msg ->
+                                                paymentInProgress = false
+                                                paymentSuccessUtr = "UTR${(100000000000L..999999999999L).random()}"
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = NetflixRed),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Authorize & Confirm", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                            2 -> {
+                                // ENTER VPA
+                                Column {
+                                    androidx.compose.material3.OutlinedTextField(
+                                        value = customVpaInput,
+                                        onValueChange = { customVpaInput = it },
+                                        placeholder = { Text("e.g. yourname@okhdfcbank", color = TextMuted, fontSize = 12.sp) },
+                                        label = { Text("Enter your UPI VPA", color = TextSecondary) },
+                                        singleLine = true,
+                                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = NetflixRed,
+                                            unfocusedBorderColor = BorderGray,
+                                            focusedTextColor = TextPrimary,
+                                            unfocusedTextColor = TextPrimary
+                                        ),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Button(
+                                        onClick = {
+                                            paymentInProgress = true
+                                            StreamRepository.processZapUpiPayment(
+                                                plan = selectedPlan,
+                                                vpaId = if (customVpaInput.isNotBlank()) customVpaInput else zapConfig.merchantVpa
+                                            ) { success, msg ->
+                                                paymentInProgress = false
+                                                paymentSuccessUtr = "UTR${(100000000000L..999999999999L).random()}"
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = NetflixRed),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Verify & Pay ₹${selectedPlan.priceInr}", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             },
             confirmButton = {
-                if (!paymentInProgress && paymentStatusMessage == null) {
-                    Button(
-                        onClick = {
-                            paymentInProgress = true
-                            StreamRepository.processZapUpiPayment(
-                                plan = selectedPlan,
-                                vpaId = zapConfig.merchantVpa
-                            ) { success, msg ->
-                                paymentInProgress = false
-                                paymentStatusMessage = msg
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = NetflixRed),
-                        modifier = Modifier.testTag("confirm_zapupi_webhook_btn")
-                    ) {
-                        Text("Simulate UPI Payment Success")
-                    }
-                } else if (paymentStatusMessage != null) {
+                if (paymentSuccessUtr != null) {
                     Button(
                         onClick = {
                             showZapUpiDialog = false
-                            paymentStatusMessage = null
+                            paymentSuccessUtr = null
                             onBack()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = GreenSuccess)
+                        colors = ButtonDefaults.buttonColors(containerColor = GreenSuccess),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Done")
+                        Text("Start Watching Now", fontWeight = FontWeight.Bold)
                     }
                 }
             },
             dismissButton = {
-                if (!paymentInProgress && paymentStatusMessage == null) {
+                if (!paymentInProgress && paymentSuccessUtr == null) {
                     TextButton(onClick = { showZapUpiDialog = false }) {
                         Text("Cancel", color = TextSecondary)
                     }

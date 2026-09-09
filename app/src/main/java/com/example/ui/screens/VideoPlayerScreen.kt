@@ -1,5 +1,11 @@
 package com.example.ui.screens
 
+import android.net.Uri
+import android.view.ViewGroup
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.VideoView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -72,6 +78,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.example.data.AdCampaign
@@ -138,6 +145,12 @@ fun VideoPlayerScreen(
     var currentPositionSeconds by remember { mutableLongStateOf(25L) }
     val totalDurationSeconds = remember {
         (initialEpisode?.durationMinutes ?: content.durationMinutes) * 60L
+    }
+    val activeEmbedUrl = remember(content, initialEpisode) {
+        initialEpisode?.embedUrl?.ifBlank { content.embedUrl } ?: content.embedUrl
+    }
+    val activeVideoUrl = remember(content, initialEpisode) {
+        initialEpisode?.videoUrl?.ifBlank { content.videoUrl } ?: content.videoUrl
     }
     var showControls by remember { mutableStateOf(true) }
     var isLocked by remember { mutableStateOf(false) }
@@ -307,7 +320,7 @@ fun VideoPlayerScreen(
                 }
             }
     ) {
-        // Simulated video frame (High definition backdrop with subtle motion)
+        // High-definition Backdrop Canvas (renders instantly as smooth base layer)
         SubcomposeAsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(content.backdropUrl)
@@ -317,6 +330,70 @@ fun VideoPlayerScreen(
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
+
+        // Native Video Player / Embed Web Player
+        if (activeEmbedUrl.isNotBlank() && !isPreRollActive && !isMidRollActive) {
+            AndroidView(
+                factory = { ctx ->
+                    WebView(ctx).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.mediaPlaybackRequiresUserGesture = false
+                        webViewClient = WebViewClient()
+                        webChromeClient = WebChromeClient()
+                        val html = """
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+                                <style>
+                                    body, html { margin:0; padding:0; width:100%; height:100%; background-color:#000; overflow:hidden; }
+                                    iframe { width:100%; height:100%; border:none; }
+                                </style>
+                            </head>
+                            <body>
+                                <iframe src="$activeEmbedUrl" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture"></iframe>
+                            </body>
+                            </html>
+                        """.trimIndent()
+                        loadDataWithBaseURL("https://zxh4stream.app", html, "text/html", "UTF-8", null)
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else if (activeVideoUrl.isNotBlank() && !isPreRollActive && !isMidRollActive) {
+            AndroidView(
+                factory = { ctx ->
+                    VideoView(ctx).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        try {
+                            setVideoURI(Uri.parse(activeVideoUrl))
+                            setOnPreparedListener { mp ->
+                                mp.isLooping = true
+                                if (isPlaying) start()
+                            }
+                        } catch (_: Exception) {}
+                    }
+                },
+                update = { vView ->
+                    try {
+                        if (isPlaying) {
+                            if (!vView.isPlaying) vView.start()
+                        } else {
+                            if (vView.isPlaying) vView.pause()
+                        }
+                    } catch (_: Exception) {}
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         // Dark dimming overlay
         Box(

@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -92,6 +93,7 @@ fun ContentDetailScreen(
     val allContents by StreamRepository.contents.collectAsState()
     val inMyList = myList.contains(content.id)
 
+    val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(if (content.type == ContentType.SERIES) 0 else 1) }
     var selectedSeasonIndex by remember { mutableStateOf(0) }
     var showSeasonDropdown by remember { mutableStateOf(false) }
@@ -170,7 +172,15 @@ fun ContentDetailScreen(
 
                     Row {
                         IconButton(
-                            onClick = { /* Share simulated */ },
+                            onClick = {
+                                val sendIntent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    putExtra(Intent.EXTRA_TEXT, "Watch ${content.title} on Zxh4Stream! ${content.description.take(120)}...")
+                                    type = "text/plain"
+                                }
+                                val shareIntent = Intent.createChooser(sendIntent, "Share ${content.title}")
+                                context.startActivity(shareIntent)
+                            },
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
