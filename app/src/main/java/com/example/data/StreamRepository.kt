@@ -82,6 +82,16 @@ object StreamRepository {
     private val _transactions = MutableStateFlow(MockData.initialTransactions)
     val transactions: StateFlow<List<PaymentTransaction>> = _transactions.asStateFlow()
 
+    // Advertising Engine State
+    private val _adConfig = MutableStateFlow(AdConfig())
+    val adConfig: StateFlow<AdConfig> = _adConfig.asStateFlow()
+
+    private val _adCampaigns = MutableStateFlow(MockData.initialAdCampaigns)
+    val adCampaigns: StateFlow<List<AdCampaign>> = _adCampaigns.asStateFlow()
+
+    private val _temporaryAdFreeUnlockUntil = MutableStateFlow<Long>(0L)
+    val temporaryAdFreeUnlockUntil: StateFlow<Long> = _temporaryAdFreeUnlockUntil.asStateFlow()
+
     // Auth actions
     fun login(email: String, pass: String): Result<String> {
         val trimmedEmail = email.trim()
@@ -327,4 +337,57 @@ object StreamRepository {
             }
         }
     }
+
+    // Advertisement System Helpers
+    fun isUserSubjectToAds(): Boolean {
+        if (!_adConfig.value.adsEnabled) return false
+        val now = System.currentTimeMillis()
+        if (_temporaryAdFreeUnlockUntil.value > now) return false
+        return _currentPlan.value.hasAds || _currentPlan.value.id == "plan_free"
+    }
+
+    fun unlockTemporaryReward(durationMinutes: Int = 120) {
+        _temporaryAdFreeUnlockUntil.value = System.currentTimeMillis() + (durationMinutes * 60 * 1000L)
+    }
+
+    fun recordAdImpression(campaignId: String) {
+        _adCampaigns.update { list ->
+            list.map {
+                if (it.id == campaignId) it.copy(impressionsCount = it.impressionsCount + 1) else it
+            }
+        }
+    }
+
+    fun recordAdClick(campaignId: String) {
+        _adCampaigns.update { list ->
+            list.map {
+                if (it.id == campaignId) it.copy(clicksCount = it.clicksCount + 1) else it
+            }
+        }
+    }
+
+    fun adminToggleAd(campaignId: String) {
+        _adCampaigns.update { list ->
+            list.map {
+                if (it.id == campaignId) it.copy(isActive = !it.isActive) else it
+            }
+        }
+    }
+
+    fun adminCreateAdCampaign(campaign: AdCampaign) {
+        _adCampaigns.update { listOf(campaign) + it }
+    }
+
+    fun adminDeleteAdCampaign(campaignId: String) {
+        _adCampaigns.update { list -> list.filterNot { it.id == campaignId } }
+    }
+
+    fun adminUpdateAdConfig(config: AdConfig) {
+        _adConfig.value = config
+    }
+
+    fun updateAdConfig(config: AdConfig) = adminUpdateAdConfig(config)
+    fun toggleAdCampaignActive(campaignId: String) = adminToggleAd(campaignId)
+    fun addAdCampaign(campaign: AdCampaign) = adminCreateAdCampaign(campaign)
+    fun deleteAdCampaign(campaignId: String) = adminDeleteAdCampaign(campaignId)
 }

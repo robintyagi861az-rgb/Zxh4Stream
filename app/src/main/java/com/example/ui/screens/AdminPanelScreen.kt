@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.People
@@ -48,6 +49,11 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.Visibility
+import com.example.data.AdCampaign
+import com.example.data.AdConfig
+import com.example.data.AdFormat
 import com.example.ui.components.FeaturedPill
 import com.example.ui.components.Top10IndiaPill
 import com.example.ui.components.TrendingPill
@@ -113,12 +119,13 @@ fun AdminPanelScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedSection by remember { mutableIntStateOf(0) }
-    // 0: Overview, 1: Content, 2: Users, 3: Payments & ZapUPI, 4: Broadcast Notif, 5: Integrations & API Keys, 6: App Settings
+    // 0: Overview, 1: Content, 2: Users, 3: Ads Engine, 4: Payments & ZapUPI, 5: Broadcast Notif, 6: Integrations & API Keys, 7: App Settings
 
     val sections = listOf(
         "Overview" to Icons.Default.Analytics,
         "Content" to Icons.Default.Movie,
         "Users" to Icons.Default.People,
+        "Ads Engine" to Icons.Default.MonetizationOn,
         "ZapUPI Billing" to Icons.Default.Payment,
         "Broadcast" to Icons.Default.Campaign,
         "API & VPS" to Icons.Default.Dns,
@@ -219,10 +226,11 @@ fun AdminPanelScreen(
             0 -> AdminOverviewSection()
             1 -> AdminContentSection()
             2 -> AdminUsersSection()
-            3 -> AdminPaymentsSection()
-            4 -> AdminBroadcastSection()
-            5 -> AdminIntegrationsSection()
-            6 -> AdminAppSettingsSection()
+            3 -> AdminAdsSection()
+            4 -> AdminPaymentsSection()
+            5 -> AdminBroadcastSection()
+            6 -> AdminIntegrationsSection()
+            7 -> AdminAppSettingsSection()
         }
     }
 }
@@ -796,6 +804,544 @@ private fun AdminUsersSection() {
                 }
             }
         }
+    }
+}
+
+// 3b. ADVERTISEMENT ENGINE MANAGEMENT
+@Composable
+private fun AdminAdsSection() {
+    val adConfig by StreamRepository.adConfig.collectAsState()
+    val adCampaigns by StreamRepository.adCampaigns.collectAsState()
+    var showCreateDialog by remember { mutableStateOf(false) }
+
+    val totalImpressions = adCampaigns.sumOf { it.impressionsCount }
+    val totalClicks = adCampaigns.sumOf { it.clicksCount }
+    val overallCtr = if (totalImpressions > 0) {
+        String.format("%.2f%%", (totalClicks.toDouble() / totalImpressions) * 100)
+    } else {
+        "0.00%"
+    }
+    val estimatedRevenue = "₹" + String.format("%.2f", (totalImpressions * 0.35) + (totalClicks * 4.20))
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Master Ad Engine Switch Card
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(SurfaceCard)
+                    .border(1.dp, if (adConfig.adsEnabled) NetflixRed.copy(alpha = 0.5f) else BorderGray, RoundedCornerShape(12.dp))
+                    .padding(16.dp)
+            ) {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = NetflixRed, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text("Monetization & Ad Engine", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text(
+                                    text = if (adConfig.adsEnabled) "Ads active for free tier & non-VIP users" else "All ads globally paused",
+                                    color = if (adConfig.adsEnabled) GreenSuccess else TextMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = adConfig.adsEnabled,
+                            onCheckedChange = {
+                                StreamRepository.updateAdConfig(adConfig.copy(adsEnabled = it))
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = NetflixRed
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = BorderGray)
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text("Ad Placements & Rules", color = TextSecondary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Pre-roll toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Pre-Roll Video Ads", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text("Plays 10-15s ad before streaming video", color = TextMuted, fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = adConfig.enablePreRoll,
+                            onCheckedChange = {
+                                StreamRepository.updateAdConfig(adConfig.copy(enablePreRoll = it))
+                            },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = NetflixRed)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Mid-roll toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Mid-Roll Video Breaks", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text("Automatic ad cue every ${adConfig.midRollIntervalMinutes} minutes", color = TextMuted, fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = adConfig.enableMidRoll,
+                            onCheckedChange = {
+                                StreamRepository.updateAdConfig(adConfig.copy(enableMidRoll = it))
+                            },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = NetflixRed)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Rewarded Ads toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Rewarded Quality Unlock", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text("Allows free users to watch ad to unlock 1080p Ultra HD", color = TextMuted, fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = adConfig.enableRewardedAds,
+                            onCheckedChange = {
+                                StreamRepository.updateAdConfig(adConfig.copy(enableRewardedAds = it))
+                            },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = NetflixRed)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // In-feed banner toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Native Feed Banner Ads", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text("Displays sponsored cards between rows on Home feed", color = TextMuted, fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = adConfig.enableBannerAds,
+                            onCheckedChange = {
+                                StreamRepository.updateAdConfig(adConfig.copy(enableBannerAds = it))
+                            },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = NetflixRed)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Monetization KPIs Card
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Impressions
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(SurfaceCard)
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Visibility, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Views", color = TextMuted, fontSize = 11.sp)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = "$totalImpressions", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    }
+                }
+
+                // Clicks
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(SurfaceCard)
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.TouchApp, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Clicks", color = TextMuted, fontSize = 11.sp)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = "$totalClicks", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    }
+                }
+
+                // Overall CTR
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(SurfaceCard)
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Text("CTR", color = TextMuted, fontSize = 11.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = overallCtr, color = GreenSuccess, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    }
+                }
+
+                // Revenue
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(SurfaceCard)
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Text("Est. Rev", color = TextMuted, fontSize = 11.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = estimatedRevenue, color = Color(0xFFFFD700), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+                }
+            }
+        }
+
+        // Active Campaigns List Header
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Ad Campaigns (${adCampaigns.size})",
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                Button(
+                    onClick = { showCreateDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = NetflixRed),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("New Campaign", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        // Campaign Items
+        items(adCampaigns) { c ->
+            val formatBadgeColor = when (c.format) {
+                AdFormat.PRE_ROLL -> NetflixRed
+                AdFormat.MID_ROLL -> Color(0xFF2196F3)
+                AdFormat.BANNER -> GreenSuccess
+                AdFormat.REWARDED -> Color(0xFFFFD700)
+            }
+            val ctr = String.format("%.1f%%", c.ctrPercent)
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(SurfaceCard)
+                    .border(1.dp, if (c.isActive) BorderGray else BorderGray.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                    .padding(14.dp)
+            ) {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(formatBadgeColor.copy(alpha = 0.2f))
+                                    .border(1.dp, formatBadgeColor.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = c.format.name.replace("_", " "),
+                                    color = formatBadgeColor,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = c.brandName,
+                                color = TextMuted,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Switch(
+                                checked = c.isActive,
+                                onCheckedChange = { StreamRepository.toggleAdCampaignActive(c.id) },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = GreenSuccess
+                                ),
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(
+                                onClick = { StreamRepository.deleteAdCampaign(c.id) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = TextMuted, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(text = c.title, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(text = c.description, color = TextSecondary, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    HorizontalDivider(color = BorderGray.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "${c.impressionsCount} Views • ${c.clicksCount} Clicks • $ctr CTR",
+                            color = TextMuted,
+                            fontSize = 11.sp
+                        )
+                        Text(
+                            text = "CTA: ${c.ctaText}",
+                            color = Color(0xFF64B5F6),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // Create Campaign Dialog
+    if (showCreateDialog) {
+        var title by remember { mutableStateOf("") }
+        var sponsor by remember { mutableStateOf("") }
+        var description by remember { mutableStateOf("") }
+        var format by remember { mutableStateOf(AdFormat.PRE_ROLL) }
+        var targetUrl by remember { mutableStateOf("https://play.google.com/store") }
+        var cta by remember { mutableStateOf("Learn More") }
+        var durationSecs by remember { mutableStateOf("15") }
+        var skipAfterSecs by remember { mutableStateOf("5") }
+
+        AlertDialog(
+            onDismissRequest = { showCreateDialog = false },
+            containerColor = SurfaceCard,
+            title = {
+                Text("Create New Ad Campaign", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = sponsor,
+                        onValueChange = { sponsor = it },
+                        label = { Text("Sponsor / Brand Name", color = TextSecondary) },
+                        placeholder = { Text("e.g. Swiggy, Nike, Tata Motors", color = TextMuted) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = NetflixRed,
+                            unfocusedBorderColor = BorderGray,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Headline / Title", color = TextSecondary) },
+                        placeholder = { Text("e.g. Up to 60% Off on Food Orders", color = TextMuted) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = NetflixRed,
+                            unfocusedBorderColor = BorderGray,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        label = { Text("Body Description", color = TextSecondary) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = NetflixRed,
+                            unfocusedBorderColor = BorderGray,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text("Placement Format", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        AdFormat.values().forEach { f ->
+                            val isSel = format == f
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (isSel) NetflixRed else Color(0xFF222222))
+                                    .clickable { format = f }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = f.name.replace("_", " "),
+                                    color = if (isSel) Color.White else TextMuted,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = targetUrl,
+                        onValueChange = { targetUrl = it },
+                        label = { Text("Destination URL", color = TextSecondary) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = NetflixRed,
+                            unfocusedBorderColor = BorderGray,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = cta,
+                            onValueChange = { cta = it },
+                            label = { Text("CTA Text", color = TextSecondary) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = NetflixRed,
+                                unfocusedBorderColor = BorderGray,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = durationSecs,
+                            onValueChange = { durationSecs = it },
+                            label = { Text("Duration (s)", color = TextSecondary) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = NetflixRed,
+                                unfocusedBorderColor = BorderGray,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = skipAfterSecs,
+                            onValueChange = { skipAfterSecs = it },
+                            label = { Text("Skip (s)", color = TextSecondary) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = NetflixRed,
+                                unfocusedBorderColor = BorderGray,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (title.isNotBlank() && sponsor.isNotBlank()) {
+                            val newCampaign = AdCampaign(
+                                id = "ad_custom_${System.currentTimeMillis()}",
+                                title = title,
+                                brandName = sponsor,
+                                description = description,
+                                format = format,
+                                durationSeconds = durationSecs.toIntOrNull() ?: 15,
+                                skipAfterSeconds = skipAfterSecs.toIntOrNull() ?: 5,
+                                targetUrl = targetUrl,
+                                ctaText = cta,
+                                imageUrl = "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800",
+                                isActive = true
+                            )
+                            StreamRepository.addAdCampaign(newCampaign)
+                            showCreateDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NetflixRed)
+                ) {
+                    Text("Deploy Campaign", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateDialog = false }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
     }
 }
 

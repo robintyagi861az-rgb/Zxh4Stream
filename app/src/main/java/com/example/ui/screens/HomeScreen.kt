@@ -26,8 +26,12 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,11 +40,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.AdFormat
 import com.example.data.ContentItem
 import com.example.data.ContentType
 import com.example.data.StreamRepository
 import com.example.ui.components.ContentPosterCard
 import com.example.ui.components.FeaturedHeroBanner
+import com.example.ui.components.SponsoredFeedBanner
 import com.example.ui.theme.BackgroundBlack
 import com.example.ui.theme.BlueLive
 import com.example.ui.theme.GoldStar
@@ -54,12 +60,34 @@ fun HomeScreen(
     onContentClick: (ContentItem) -> Unit,
     onPlayContent: (ContentItem) -> Unit,
     onNavigateCategory: (String) -> Unit,
+    onGoAdFree: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val contents by StreamRepository.contents.collectAsState()
     val continueWatching by StreamRepository.continueWatching.collectAsState()
     val myList by StreamRepository.myList.collectAsState()
     val activeProfile by StreamRepository.activeProfile.collectAsState()
+
+    // Advertisement System Integration
+    val adConfig by StreamRepository.adConfig.collectAsState()
+    val adCampaigns by StreamRepository.adCampaigns.collectAsState()
+    val currentPlan by StreamRepository.currentPlan.collectAsState()
+    val temporaryAdFreeUntil by StreamRepository.temporaryAdFreeUnlockUntil.collectAsState()
+    var bannerDismissed by remember { mutableStateOf(false) }
+
+    val isUserSubjectToAds = (currentPlan.hasAds || currentPlan.id == "plan_free") && temporaryAdFreeUntil < System.currentTimeMillis()
+    val bannerAd = remember(adCampaigns) {
+        adCampaigns.firstOrNull { it.isActive && it.format == AdFormat.BANNER }
+            ?: adCampaigns.firstOrNull { it.isActive }
+    }
+
+    LaunchedEffect(bannerAd?.id) {
+        bannerAd?.let {
+            if (isUserSubjectToAds && adConfig.adsEnabled && adConfig.enableBannerAds && !bannerDismissed) {
+                StreamRepository.recordAdImpression(it.id)
+            }
+        }
+    }
 
     // Filter kids content if active profile is Kids
     val displayContents = if (activeProfile.isKids) {
@@ -205,6 +233,23 @@ fun HomeScreen(
                 }
             }
             Spacer(modifier = Modifier.height(20.dp))
+        }
+
+        // Native Sponsored Feed Banner Ad
+        if (adConfig.adsEnabled && adConfig.enableBannerAds && isUserSubjectToAds && bannerAd != null && !bannerDismissed) {
+            item {
+                SponsoredFeedBanner(
+                    ad = bannerAd,
+                    onAdClick = {
+                        StreamRepository.recordAdClick(bannerAd.id)
+                    },
+                    onDismiss = {
+                        bannerDismissed = true
+                    },
+                    onGoAdFree = onGoAdFree
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+            }
         }
 
         // Row 4: Top 10 in India Today (Numbered 1-10)

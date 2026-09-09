@@ -325,6 +325,25 @@ object MockData {
 
     val subscriptionPlans = listOf(
         SubscriptionPlan(
+            id = "plan_free",
+            name = "Free (Ad-Supported)",
+            priceInr = 0,
+            billingCycle = "free forever",
+            resolution = "480p / 720p",
+            videoQuality = "Standard",
+            maxScreens = 1,
+            canDownload = false,
+            isPopular = false,
+            hasAds = true,
+            features = listOf(
+                "Access to selected movies & shows",
+                "Standard Definition streaming",
+                "Watch on 1 phone or tablet",
+                "Ad-supported pre-roll and mid-roll breaks",
+                "Stereo standard audio"
+            )
+        ),
+        SubscriptionPlan(
             id = "plan_basic",
             name = "Basic",
             priceInr = 199,
@@ -334,6 +353,7 @@ object MockData {
             maxScreens = 1,
             canDownload = true,
             isPopular = false,
+            hasAds = false,
             features = listOf(
                 "720p High Definition video",
                 "Watch on 1 phone, tablet, or laptop",
@@ -352,6 +372,7 @@ object MockData {
             maxScreens = 2,
             canDownload = true,
             isPopular = true,
+            hasAds = false,
             features = listOf(
                 "1080p Full HD crystal streaming",
                 "Watch on 2 screens simultaneously",
@@ -371,6 +392,7 @@ object MockData {
             maxScreens = 4,
             canDownload = true,
             isPopular = false,
+            hasAds = false,
             features = listOf(
                 "4K Ultra HD + Dolby Vision HDR",
                 "Watch on 4 screens simultaneously",
@@ -495,6 +517,94 @@ object MockData {
             utrNumber = "UTR492819379811",
             status = "REFUNDED",
             timestamp = "06 Sep 2025"
+        )
+    )
+
+    val initialAdCampaigns = listOf(
+        AdCampaign(
+            id = "ad_oneplus",
+            title = "OnePlus 13 5G Flagship",
+            brandName = "OnePlus",
+            description = "Snapdragon 8 Elite, 2K 120Hz Oriental Display & Hasselblad Master Camera System.",
+            videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+            imageUrl = "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&auto=format&fit=crop&q=80",
+            targetUrl = "https://oneplus.in",
+            ctaText = "Buy Now",
+            format = AdFormat.PRE_ROLL,
+            durationSeconds = 15,
+            skipAfterSeconds = 5,
+            impressionsCount = 18450,
+            clicksCount = 2120,
+            isActive = true,
+            category = "Smartphones"
+        ),
+        AdCampaign(
+            id = "ad_zappay",
+            title = "ZapUPI Quick Checkout",
+            brandName = "ZapPay",
+            description = "Zero wait time, instant 2-step UPI verification with up to ₹250 flat cashback on first recharge.",
+            videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+            imageUrl = "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=800&auto=format&fit=crop&q=80",
+            targetUrl = "https://zappay.in",
+            ctaText = "Claim ₹250",
+            format = AdFormat.MID_ROLL,
+            durationSeconds = 15,
+            skipAfterSeconds = 5,
+            impressionsCount = 14200,
+            clicksCount = 1890,
+            isActive = true,
+            category = "FinTech"
+        ),
+        AdCampaign(
+            id = "ad_boat",
+            title = "boAt Nirvana Ion ANC",
+            brandName = "boAt Lifestyle",
+            description = "120 Hours Playback with 32dB Active Noise Cancellation and HiFi DSP audio drivers.",
+            videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+            imageUrl = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop&q=80",
+            targetUrl = "https://boat-lifestyle.com",
+            ctaText = "Get 60% Off",
+            format = AdFormat.BANNER,
+            durationSeconds = 10,
+            skipAfterSeconds = 3,
+            impressionsCount = 28900,
+            clicksCount = 3740,
+            isActive = true,
+            category = "Audio"
+        ),
+        AdCampaign(
+            id = "ad_swiggy",
+            title = "Swiggy One - Free Delivery",
+            brandName = "Swiggy",
+            description = "Unlimited free delivery on restaurants and 10-minute grocery delivery across India.",
+            videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4",
+            imageUrl = "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&auto=format&fit=crop&q=80",
+            targetUrl = "https://swiggy.com",
+            ctaText = "Order Now",
+            format = AdFormat.BANNER,
+            durationSeconds = 12,
+            skipAfterSeconds = 5,
+            impressionsCount = 22100,
+            clicksCount = 2950,
+            isActive = true,
+            category = "Food & Delivery"
+        ),
+        AdCampaign(
+            id = "ad_rewarded_ultra",
+            title = "Unlock 4K Ultra Pass",
+            brandName = "Zxh4 Rewards",
+            description = "Watch this sponsored showcase to instantly unlock 1080p Ultra HD streaming for your next 2 hours!",
+            videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+            imageUrl = "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?w=800&auto=format&fit=crop&q=80",
+            targetUrl = "https://zxh4stream.com/rewards",
+            ctaText = "Watch to Unlock",
+            format = AdFormat.REWARDED,
+            durationSeconds = 15,
+            skipAfterSeconds = 0,
+            impressionsCount = 9420,
+            clicksCount = 1430,
+            isActive = true,
+            category = "Rewards"
         )
     )
 }

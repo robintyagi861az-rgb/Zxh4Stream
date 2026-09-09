@@ -96,6 +96,7 @@ data class SubscriptionPlan(
     val maxScreens: Int = 2,
     val canDownload: Boolean = true,
     val isPopular: Boolean = false,
+    val hasAds: Boolean = false,
     val features: List<String>
 )
 
@@ -189,3 +190,45 @@ data class PaymentTransaction(
     val timestamp: String,
     val gateway: String = "ZapUPI"
 )
+
+enum class AdFormat(val label: String) {
+    PRE_ROLL("Pre-Roll Video"),
+    MID_ROLL("Mid-Roll Video"),
+    BANNER("Feed Banner"),
+    REWARDED("Rewarded Video")
+}
+
+data class AdCampaign(
+    val id: String,
+    val title: String,
+    val brandName: String,
+    val description: String,
+    val videoUrl: String = "",
+    val imageUrl: String = "",
+    val targetUrl: String = "https://zxh4stream.com/promo",
+    val ctaText: String = "Learn More",
+    val format: AdFormat = AdFormat.PRE_ROLL,
+    val durationSeconds: Int = 15,
+    val skipAfterSeconds: Int = 5,
+    val impressionsCount: Int = 1420,
+    val clicksCount: Int = 186,
+    val isActive: Boolean = true,
+    val category: String = "Electronics"
+) {
+    val ctrPercent: Float
+        get() = if (impressionsCount > 0) (clicksCount.toFloat() / impressionsCount * 100f) else 0f
+}
+
+data class AdConfig(
+    val adsEnabled: Boolean = true,
+    val enablePreRoll: Boolean = true,
+    val enableMidRoll: Boolean = true,
+    val enableRewardedAds: Boolean = true,
+    val enableBannerAds: Boolean = true,
+    val midRollIntervalMinutes: Int = 10,
+    val skipDelaySeconds: Int = 5,
+    val adNetworkProvider: String = "Zxh4 Direct Ad Engine",
+    val allowAdFreeTrial: Boolean = true,
+    val estimatedRevenueInr: Int = 24850
+)
+

@@ -140,6 +140,11 @@ fun Zxh4StreamApp() {
             onClose = {
                 activePlayingContent = null
                 activePlayingEpisode = null
+            },
+            onUpgradeToVip = {
+                activePlayingContent = null
+                activePlayingEpisode = null
+                showSubscriptionPlans = true
             }
         )
         return
@@ -275,7 +280,8 @@ fun Zxh4StreamApp() {
                             onPlayContent = { activePlayingContent = it },
                             onNavigateCategory = { cat ->
                                 currentTab = NavigationTab.SEARCH
-                            }
+                            },
+                            onGoAdFree = { showSubscriptionPlans = true }
                         )
                     }
                     NavigationTab.SEARCH -> {

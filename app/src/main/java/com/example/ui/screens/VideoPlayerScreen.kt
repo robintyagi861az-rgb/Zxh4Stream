@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -51,8 +52,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,11 +74,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
+import com.example.data.AdCampaign
+import com.example.data.AdFormat
 import com.example.data.ContentItem
 import com.example.data.ContentType
 import com.example.data.Episode
 import com.example.data.StreamQuality
 import com.example.data.StreamRepository
+import com.example.ui.components.RewardedAdUnlockDialog
+import com.example.ui.components.VideoAdOverlay
 import com.example.ui.theme.BackgroundBlack
 import com.example.ui.theme.NetflixRed
 import com.example.ui.theme.SurfaceCard
@@ -89,19 +96,113 @@ fun VideoPlayerScreen(
     content: ContentItem,
     initialEpisode: Episode? = null,
     onClose: () -> Unit,
+    onUpgradeToVip: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var isPlaying by remember { mutableStateOf(true) }
+    // Advertisement System State
+    val adConfig by StreamRepository.adConfig.collectAsState()
+    val adCampaigns by StreamRepository.adCampaigns.collectAsState()
+    val currentPlan by StreamRepository.currentPlan.collectAsState()
+    val temporaryAdFreeUntil by StreamRepository.temporaryAdFreeUnlockUntil.collectAsState()
+
+    val isUserFreeTier = currentPlan.hasAds || currentPlan.id == "plan_free"
+    val isTemporaryUnlocked = temporaryAdFreeUntil > System.currentTimeMillis()
+    val shouldPlayAds = adConfig.adsEnabled && isUserFreeTier && !isTemporaryUnlocked
+
+    // Pre-roll ad state
+    val preRollAd = remember(adCampaigns) {
+        adCampaigns.firstOrNull { it.isActive && it.format == AdFormat.PRE_ROLL }
+            ?: adCampaigns.firstOrNull { it.isActive }
+    }
+    var isPreRollActive by remember { mutableStateOf(shouldPlayAds && adConfig.enablePreRoll && preRollAd != null) }
+    var adSecondsElapsed by remember { mutableIntStateOf(0) }
+    var preRollLogged by remember { mutableStateOf(false) }
+
+    // Mid-roll ad state
+    val midRollAd = remember(adCampaigns) {
+        adCampaigns.firstOrNull { it.isActive && it.format == AdFormat.MID_ROLL }
+            ?: adCampaigns.firstOrNull { it.isActive }
+    }
+    var isMidRollActive by remember { mutableStateOf(false) }
+    var midRollTriggered by remember { mutableStateOf(false) }
+
+    // Rewarded Ad state
+    val rewardedAd = remember(adCampaigns) {
+        adCampaigns.firstOrNull { it.isActive && it.format == AdFormat.REWARDED }
+            ?: adCampaigns.firstOrNull { it.isActive }
+    }
+    var showRewardedAdDialog by remember { mutableStateOf(false) }
+    var isPlayingRewardedAd by remember { mutableStateOf(false) }
+
+    var isPlaying by remember { mutableStateOf(!isPreRollActive) }
     var currentPositionSeconds by remember { mutableLongStateOf(25L) }
     val totalDurationSeconds = remember {
         (initialEpisode?.durationMinutes ?: content.durationMinutes) * 60L
     }
-
     var showControls by remember { mutableStateOf(true) }
     var isLocked by remember { mutableStateOf(false) }
-
-    // Double tap feedback
     var showSeekFeedback by remember { mutableStateOf<String?>(null) }
+
+    // VIP ad-free banner chip for paid users (auto-dismisses in 3.5s)
+    var showVipAdFreeChip by remember { mutableStateOf(!isUserFreeTier || isTemporaryUnlocked) }
+    LaunchedEffect(showVipAdFreeChip) {
+        if (showVipAdFreeChip) {
+            delay(3500)
+            showVipAdFreeChip = false
+        }
+    }
+
+    // Pre-roll ticker
+    LaunchedEffect(isPreRollActive, adSecondsElapsed) {
+        if (isPreRollActive && preRollAd != null) {
+            if (!preRollLogged) {
+                StreamRepository.recordAdImpression(preRollAd.id)
+                preRollLogged = true
+            }
+            delay(1000)
+            if (adSecondsElapsed < preRollAd.durationSeconds) {
+                adSecondsElapsed += 1
+            } else {
+                isPreRollActive = false
+            }
+        }
+    }
+
+    // Mid-roll ticker
+    LaunchedEffect(isMidRollActive, adSecondsElapsed) {
+        if (isMidRollActive && midRollAd != null) {
+            delay(1000)
+            if (adSecondsElapsed < midRollAd.durationSeconds) {
+                adSecondsElapsed += 1
+            } else {
+                isMidRollActive = false
+            }
+        }
+    }
+
+    // Rewarded ad ticker
+    LaunchedEffect(isPlayingRewardedAd, adSecondsElapsed) {
+        if (isPlayingRewardedAd && rewardedAd != null) {
+            delay(1000)
+            if (adSecondsElapsed < rewardedAd.durationSeconds) {
+                adSecondsElapsed += 1
+            } else {
+                isPlayingRewardedAd = false
+                StreamRepository.unlockTemporaryReward(120)
+                showSeekFeedback = "1080p Ultra HD Unlocked!"
+            }
+        }
+    }
+
+    // Trigger mid-roll at 600s
+    LaunchedEffect(currentPositionSeconds) {
+        if (shouldPlayAds && adConfig.enableMidRoll && !midRollTriggered && currentPositionSeconds >= 600L && midRollAd != null) {
+            midRollTriggered = true
+            adSecondsElapsed = 0
+            isMidRollActive = true
+            StreamRepository.recordAdImpression(midRollAd.id)
+        }
+    }
 
     // Gestures HUD
     var brightnessLevel by remember { mutableFloatStateOf(0.75f) }
@@ -127,8 +228,8 @@ fun VideoPlayerScreen(
     }
 
     // Playback progress ticker
-    LaunchedEffect(isPlaying) {
-        while (isPlaying) {
+    LaunchedEffect(isPlaying, isPreRollActive, isMidRollActive, isPlayingRewardedAd) {
+        while (isPlaying && !isPreRollActive && !isMidRollActive && !isPlayingRewardedAd) {
             delay(1000)
             if (currentPositionSeconds < totalDurationSeconds) {
                 currentPositionSeconds += 1
@@ -567,6 +668,117 @@ fun VideoPlayerScreen(
                 }
             }
         }
+
+        // VIP Ad-Free Chip Notification (Shown on playback start for paid subscribers)
+        if (showVipAdFreeChip && !isPreRollActive && !isMidRollActive && !isPlayingRewardedAd) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 16.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.Black.copy(alpha = 0.75f))
+                    .border(1.dp, Color(0xFFFFD700).copy(alpha = 0.6f), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.WorkspacePremium,
+                        contentDescription = null,
+                        tint = Color(0xFFFFD700),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isTemporaryUnlocked) "1080p Ad-Free Pass Active" else "VIP Ad-Free Streaming Active",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // Pre-Roll Video Ad Overlay
+        if (isPreRollActive && preRollAd != null) {
+            VideoAdOverlay(
+                ad = preRollAd,
+                secondsElapsed = adSecondsElapsed,
+                totalDurationSeconds = preRollAd.durationSeconds,
+                skipAfterSeconds = preRollAd.skipAfterSeconds,
+                onSkipAd = {
+                    isPreRollActive = false
+                    isPlaying = true
+                },
+                onAdClick = {
+                    StreamRepository.recordAdClick(preRollAd.id)
+                },
+                onUpgradeToVip = {
+                    onClose()
+                    onUpgradeToVip()
+                }
+            )
+        }
+
+        // Mid-Roll Video Ad Overlay
+        if (isMidRollActive && midRollAd != null) {
+            VideoAdOverlay(
+                ad = midRollAd,
+                secondsElapsed = adSecondsElapsed,
+                totalDurationSeconds = midRollAd.durationSeconds,
+                skipAfterSeconds = midRollAd.skipAfterSeconds,
+                onSkipAd = {
+                    isMidRollActive = false
+                    isPlaying = true
+                },
+                onAdClick = {
+                    StreamRepository.recordAdClick(midRollAd.id)
+                },
+                onUpgradeToVip = {
+                    onClose()
+                    onUpgradeToVip()
+                }
+            )
+        }
+
+        // Rewarded Video Ad Overlay
+        if (isPlayingRewardedAd && rewardedAd != null) {
+            VideoAdOverlay(
+                ad = rewardedAd,
+                secondsElapsed = adSecondsElapsed,
+                totalDurationSeconds = rewardedAd.durationSeconds,
+                skipAfterSeconds = 0,
+                onSkipAd = {},
+                onAdClick = {
+                    StreamRepository.recordAdClick(rewardedAd.id)
+                },
+                onUpgradeToVip = {
+                    onClose()
+                    onUpgradeToVip()
+                }
+            )
+        }
+    }
+
+    // REWARDED AD UNLOCK DIALOG
+    if (showRewardedAdDialog) {
+        RewardedAdUnlockDialog(
+            onWatchAd = {
+                showRewardedAdDialog = false
+                isPlaying = false
+                isPreRollActive = false
+                isMidRollActive = false
+                adSecondsElapsed = 0
+                isPlayingRewardedAd = true
+                rewardedAd?.let { StreamRepository.recordAdImpression(it.id) }
+            },
+            onDismiss = { showRewardedAdDialog = false },
+            onUpgradeVip = {
+                showRewardedAdDialog = false
+                onClose()
+                onUpgradeToVip()
+            }
+        )
     }
 
     // QUALITY SELECTOR DIALOG
@@ -584,27 +796,44 @@ fun VideoPlayerScreen(
             text = {
                 Column {
                     StreamQuality.values().forEach { q ->
+                        val isLockedBehindAd = shouldPlayAds && (q == StreamQuality.P1080 || q == StreamQuality.UHD_4K)
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    selectedQuality = q
-                                    showQualityDialog = false
+                                    if (isLockedBehindAd) {
+                                        showQualityDialog = false
+                                        showRewardedAdDialog = true
+                                    } else {
+                                        selectedQuality = q
+                                        showQualityDialog = false
+                                    }
                                 }
                                 .padding(vertical = 8.dp)
                         ) {
                             RadioButton(
                                 selected = selectedQuality == q,
                                 onClick = {
-                                    selectedQuality = q
-                                    showQualityDialog = false
+                                    if (isLockedBehindAd) {
+                                        showQualityDialog = false
+                                        showRewardedAdDialog = true
+                                    } else {
+                                        selectedQuality = q
+                                        showQualityDialog = false
+                                    }
                                 },
                                 colors = RadioButtonDefaults.colors(selectedColor = NetflixRed)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
-                                Text(text = q.label, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(text = q.label, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                    if (isLockedBehindAd) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(text = "Watch Ad", color = Color(0xFFFFD700), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
                                 Text(text = q.bitrate, color = TextMuted, fontSize = 12.sp)
                             }
                         }
